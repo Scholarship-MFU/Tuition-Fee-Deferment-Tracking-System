@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบติดตามเอกสารการผ่อนผันค่าเทอม</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Use a stable version of Babel standalone -->
+    <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f3f4f6; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module" data-presets="react">
+        const { useState, useEffect } = React;
+
+        // --- Mock Data & Helpers ---
+        const STATUS_1 = 'เอกสารเสนอสำนักวิชา';
+        const STATUS_2 = 'เอกสารอยู่ระหว่างเสนออนุมัติ';
+        const STATUS_CONFIRMED = 'ยืนยันการลงทะเบียนเรียนเรียบร้อยแล้ว';
+        const STATUS_3 = 'เอกสารอนุมัติ';
+
+        const FACULTIES = [
+            'สำนักวิชาศิลปศาสตร์', 'สำนักวิชาวิทยาศาสตร์', 'สำนักวิชาการจัดการ', 'สำนักวิชาเทคโนโลยีดิจิทัลประยุกต์',
+            'สำนักวิชาอุตสาหกรรมเกษตร', 'สำนักวิชานิติศาสตร์', 'สำนักวิชาวิทยาศาสตร์เครื่องสำอาง', 'สำนักวิชาวิทยาศาสตร์สุขภาพ',
+            'สำนักวิชาพยาบาลศาสตร์', 'สำนักวิชาแพทยศาสตร์', 'สำนักวิชาทันตแพทยศาสตร์', 'สำนักวิชานวัตกรรมสังคม',
+            'สำนักวิชาจีนวิทยา', 'สำนักวิชาการแพทย์บูรณาการ'
+        ];
+
+        const FACULTIES_EN = [
+            'School of Liberal Arts', 'School of Science', 'School of Management', 'School of Applied Digital Technology',
+            'School of Agro-Industry', 'School of Law', 'School of Cosmetic Science', 'School of Health Science',
+            'School of Nursing', 'School of Medicine', 'School of Dentistry', 'School of Social Innovation',
+            'School of Sinology', 'School of Integrative Medicine'
+        ];
+
+        const TRANSLATIONS = {
+            th: {
+                appTitle: 'ระบบติดตามเอกสารการผ่อนผันค่าเทอม', selectRole: 'กรุณาเลือกสถานะการเข้าใช้งานของท่าน',
+                student: 'นักศึกษา', studentDesc: 'ยื่นเอกสาร / ติดตามสถานะ', staff: 'เจ้าหน้าที่', staffDesc: 'จัดการข้อมูล / เปลี่ยนสถานะ',
+                backHome: 'กลับหน้าหลัก', formTab: 'กรอกคำร้องผ่อนผัน', trackTab: 'ติดตามสถานะ',
+                semester: 'ภาคการศึกษา', academicYear: 'ปีการศึกษา', fullname: 'ชื่อ - นามสกุล', studentId: 'รหัสนักศึกษา',
+                emailLabel: 'อีเมล (กรอก lamduan mail สำหรับรับการแจ้งเตือน)', facultyLabel: 'สำนักวิชา', selectFaculty: '-- เลือกสำนักวิชา --',
+                yearLabel: 'ชั้นปี', requestCountLabel: 'ทำเรื่องครั้งที่', feeInfoHeading: 'ข้อมูลค่าเทอม',
+                totalFeeLabel: 'จำนวนค่าเทอมเต็ม (บาท)', payAmountLabel: 'จำนวนเงินที่จะชำระครั้งนี้ (บาท)', remainAmountLabel: 'จำนวนคงเหลือที่ต้องชำระภายหลัง:',
+                submitBtn: 'ส่งข้อมูลคำร้อง', searchPlaceholder: 'กรอกรหัสนักศึกษาเพื่อค้นหา...', searchBtn: 'ค้นหา',
+                notFound: 'ไม่พบข้อมูลคำร้องของรหัสนักศึกษานี้', docNo: 'เลขที่เอกสาร', submitDate: 'ยื่นเมื่อ', termYear: 'ภาค/ปี',
+                feeFullShort: 'ค่าเทอมเต็ม', feePayShort: 'ชำระครั้งนี้', feeRemainShort: 'คงเหลือ', historyHeading: 'ประวัติสถานะ',
+                infoWaitReg: 'เอกสารจะได้รับอนุมัติก็ต่อเมื่อนักศึกษายืนยันการลงทะเบียนเรียนเรียบร้อยแล้ว', btnConfirmReg: 'ลงทะเบียนเรียนเรียบร้อยแล้ว',
+                outOfDate: 'อยู่นอกช่วงเวลาการยืนยันลงทะเบียน (ตรวจสอบวันที่กับเจ้าหน้าที่)', successTitle: 'ยื่นคำร้องสำเร็จ!',
+                docNoText: 'หมายเลขเอกสารของคุณคือ', successConfirm: 'ยืนยันการลงทะเบียนเรียนเรียบร้อยแล้ว สถานะของท่านถูกอัปเดตเพื่อรอเจ้าหน้าที่อนุมัติขั้นสุดท้าย', bahtText: 'บ.'
+            },
+            en: {
+                appTitle: 'Tuition Fee Deferment Tracking System', selectRole: 'Please select your role',
+                student: 'Student', studentDesc: 'Submit request / Track status', staff: 'Staff', staffDesc: 'Manage data / Update status',
+                backHome: 'Back to Home', formTab: 'Submit Request Form', trackTab: 'Track Status',
+                semester: 'Semester', academicYear: 'Academic Year', fullname: 'Full Name', studentId: 'Student ID',
+                emailLabel: 'Email (Use lamduan mail for notifications)', facultyLabel: 'School / Faculty', selectFaculty: '-- Select School --',
+                yearLabel: 'Year of Study', requestCountLabel: 'Request Time (Count)', feeInfoHeading: 'Tuition Fee Information',
+                totalFeeLabel: 'Total Tuition Fee (THB)', payAmountLabel: 'Amount to Pay This Time (THB)', remainAmountLabel: 'Remaining Amount to Pay Later:',
+                submitBtn: 'Submit Request', searchPlaceholder: 'Enter Student ID to search...', searchBtn: 'Search',
+                notFound: 'No request found for this Student ID', docNo: 'Document No.', submitDate: 'Submitted At', termYear: 'Sem/Year',
+                feeFullShort: 'Total Fee', feePayShort: 'Paying Now', feeRemainShort: 'Remaining', historyHeading: 'Status History',
+                infoWaitReg: 'The document will be approved only after confirming course registration.', btnConfirmReg: 'Confirmed Course Registration',
+                outOfDate: 'Out of confirmation period (Check dates with staff)', successTitle: 'Request submitted successfully!',
+                docNoText: 'Your document number is', successConfirm: 'Registration confirmed. Your status is updated pending final staff approval.', bahtText: 'THB'
+            }
+        };
+
+        const TRANSLATE_STATUS = {
+            [STATUS_1]: { th: STATUS_1, en: 'Document Submitted to School' },
+            [STATUS_2]: { th: STATUS_2, en: 'Pending Approval' },
+            [STATUS_CONFIRMED]: { th: STATUS_CONFIRMED, en: 'Registration Confirmed' },
+            [STATUS_3]: { th: STATUS_3, en: 'Document Approved' }
+        };
+
+        const generateDocNumber = (semester, year, count) => {
+            const pad = (num) => num.toString().padStart(4, '0');
+            return `DOC-${year}-${semester}-${pad(count + 1)}`;
+        };
+
+        const formatDate = (isoString) => {
+            if (!isoString) return '-';
+            const date = new Date(isoString);
+            return date.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        };
+
+        // --- Main Application ---
+        function App() {
+            const [view, setView] = useState('home'); // home, student, staff
+            const [lang, setLang] = useState('th'); 
+            const [requests, setRequests] = useState([]);
+            const [settings, setSettings] = useState({ startDate: '', endDate: '' });
+            const [isLoading, setIsLoading] = useState(true);
+
+            // Load data from Google Apps Script Backend
+            useEffect(() => {
+                if (typeof google !== 'undefined' && google.script) {
+                    google.script.run
+                        .withSuccessHandler((data) => {
+                            setRequests(data.requests || []);
+                            setSettings(data.settings || { startDate: '', endDate: '' });
+                            setIsLoading(false);
+                        })
+                        .withFailureHandler((error) => {
+                            console.error("Error loading data:", error);
+                            alert("เกิดข้อผิดพลาดในการโหลดข้อมูลจากฐานข้อมูล");
+                            setIsLoading(false);
+                        })
+                        .getInitialData();
+                } else {
+                    // Fallback สำหรับกรณีรันนอก GAS (Local Testing)
+                    setIsLoading(false);
+                }
+            }, []);
+
+            // Save data via GAS
+            const updateRequests = (newReqs) => {
+                setRequests(newReqs);
+                if (typeof google !== 'undefined' && google.script) {
+                    google.script.run.syncRequests(newReqs);
+                }
+            };
+
+            const updateSettings = (newSettings) => {
+                setSettings(newSettings);
+                if (typeof google !== 'undefined' && google.script) {
+                    google.script.run.syncSettings(newSettings);
+                }
+            };
+
+            // Notification System
+            const [toast, setToast] = useState(null);
+            const showToast = (message, type = 'success') => {
+                setToast({ message, type });
+                setTimeout(() => setToast(null), 5000);
+            };
+
+            const t = TRANSLATIONS[lang];
+
+            if (isLoading) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+                        <div className="text-center">
+                            <i className="fas fa-circle-notch fa-spin text-4xl text-blue-600 mb-3"></i>
+                            <h2 className="text-xl font-semibold text-gray-700">กำลังเชื่อมต่อฐานข้อมูล...</h2>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (view === 'home') {
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-4 relative">
+                        <div className="absolute top-4 right-4 flex bg-white rounded-md shadow-sm overflow-hidden border z-20">
+                            <button onClick={() => setLang('th')} className={`px-4 py-2 text-sm font-semibold transition ${lang === 'th' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>TH</button>
+                            <button onClick={() => setLang('en')} className={`px-4 py-2 text-sm font-semibold transition ${lang === 'en' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>EN</button>
+                        </div>
+                        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-2xl text-center fade-in mt-10">
+                            <i className="fas fa-university text-5xl text-blue-600 mb-4"></i>
+                            <h1 className="text-3xl font-bold text-gray-800 mb-2">{t.appTitle}</h1>
+                            <p className="text-gray-500 mb-8">{t.selectRole}</p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <button onClick={() => setView('student')} className="flex flex-col items-center justify-center p-8 border-2 border-blue-100 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition shadow-sm group">
+                                    <div className="bg-blue-100 p-4 rounded-full mb-4 group-hover:bg-blue-200 transition">
+                                        <i className="fas fa-user-graduate text-3xl text-blue-600"></i>
+                                    </div>
+                                    <span className="text-xl font-semibold text-gray-700">{t.student}</span>
+                                    <span className="text-sm text-gray-500 mt-2">{t.studentDesc}</span>
+                                </button>
+                                
+                                <button onClick={() => setView('staff-login')} className="flex flex-col items-center justify-center p-8 border-2 border-green-100 rounded-xl hover:border-green-500 hover:bg-green-50 transition shadow-sm group">
+                                    <div className="bg-green-100 p-4 rounded-full mb-4 group-hover:bg-green-200 transition">
+                                        <i className="fas fa-user-tie text-3xl text-green-600"></i>
+                                    </div>
+                                    <span className="text-xl font-semibold text-gray-700">{t.staff}</span>
+                                    <span className="text-sm text-gray-500 mt-2">{t.staffDesc}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen">
+                    {/* Header */}
+                    <header className="bg-white shadow-sm sticky top-0 z-10">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView('home')}>
+                                <i className="fas fa-university text-2xl text-blue-600"></i>
+                                <span className="text-xl font-bold text-gray-800 hidden sm:inline">Tuition Deferment</span>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="flex bg-gray-100 rounded-md overflow-hidden border">
+                                    <button onClick={() => setLang('th')} className={`px-3 py-1 text-xs font-semibold ${lang === 'th' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}>TH</button>
+                                    <button onClick={() => setLang('en')} className={`px-3 py-1 text-xs font-semibold ${lang === 'en' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}>EN</button>
+                                </div>
+                                <button onClick={() => setView('home')} className="text-gray-500 hover:text-gray-700 text-sm flex items-center gap-1">
+                                    <i className="fas fa-home"></i> <span className="hidden sm:inline">{t.backHome}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        {view === 'student' && <StudentApp requests={requests} updateRequests={updateRequests} settings={settings} showToast={showToast} lang={lang} />}
+                        {view === 'staff-login' && <StaffLogin setView={setView} />}
+                        {view === 'staff' && <StaffApp requests={requests} updateRequests={updateRequests} settings={settings} updateSettings={updateSettings} showToast={showToast} />}
+                    </main>
+
+                    {/* Toast Notification */}
+                    {toast && (
+                        <div className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg text-white fade-in z-50 flex items-start gap-3 max-w-sm ${toast.type === 'success' ? 'bg-green-600' : toast.type === 'info' ? 'bg-blue-600' : 'bg-gray-800'}`}>
+                            <i className={`fas mt-1 ${toast.type === 'success' ? 'fa-check-circle' : 'fa-envelope'}`}></i>
+                            <div>{toast.message}</div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function StudentApp({ requests, updateRequests, settings, showToast, lang }) {
+            const t = TRANSLATIONS[lang];
+            const [activeTab, setActiveTab] = useState('form');
+            const [formData, setFormData] = useState({
+                semester: '1', academicYear: '2569', email: '', fullName: '', studentId: '', 
+                faculty: '', year: '1', requestCount: '1', totalFee: '', payAmount: ''
+            });
+            const [trackId, setTrackId] = useState('');
+            const [trackResult, setTrackResult] = useState(null);
+
+            const handleInputChange = (e) => {
+                const { name, value } = e.target;
+                setFormData(prev => ({ ...prev, [name]: value }));
+            };
+
+            const calculateRemain = () => {
+                const total = parseFloat(formData.totalFee) || 0;
+                const pay = parseFloat(formData.payAmount) || 0;
+                return total - pay >= 0 ? total - pay : 0;
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const now = new Date().toISOString();
+                const count = requests.filter(r => r.semester === formData.semester && r.academicYear === formData.academicYear).length;
+                const docNumber = generateDocNumber(formData.semester, formData.academicYear, count);
+                
+                const newRequest = {
+                    id: Date.now().toString(),
+                    docNumber,
+                    ...formData,
+                    remainAmount: calculateRemain(),
+                    status: STATUS_1,
+                    submitDate: now,
+                    status1Date: now,
+                    status2Date: '',
+                    statusConfirmedDate: '',
+                    status3Date: ''
+                };
+
+                updateRequests([...requests, newRequest]);
+                
+                showToast(<div>{t.successTitle}<br/>{t.docNoText} <b>{docNumber}</b></div>);
+                setFormData({ ...formData, email: '', fullName: '', studentId: '', faculty: '', totalFee: '', payAmount: '' });
+                setTrackId(newRequest.studentId);
+                setActiveTab('track');
+                handleTrack(newRequest.studentId);
+            };
+
+            const handleTrack = (idToTrack = trackId) => {
+                const results = requests.filter(r => String(r.studentId) === String(idToTrack)).sort((a,b) => b.id - a.id);
+                setTrackResult(results);
+            };
+
+            const handleConfirmRegistration = (req) => {
+                const now = new Date().toISOString();
+                const updated = requests.map(r => {
+                    if(r.id === req.id) {
+                        return { ...r, status: STATUS_CONFIRMED, statusConfirmedDate: now };
+                    }
+                    return r;
+                });
+                updateRequests(updated);
+                handleTrack(req.studentId);
+                
+                showToast(t.successConfirm, 'success');
+            };
+
+            const isRegistrationOpen = () => {
+                if(!settings.startDate || !settings.endDate) return false;
+                const now = new Date();
+                const start = new Date(settings.startDate);
+                const end = new Date(settings.endDate);
+                end.setHours(23, 59, 59); // Include whole end day
+                return now >= start && now <= end;
+            };
+
+            return (
+                <div className="bg-white rounded-xl shadow-md overflow-hidden fade-in">
+                    <div className="flex border-b">
+                        <button onClick={() => setActiveTab('form')} className={`flex-1 py-4 font-semibold ${activeTab === 'form' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+                            <i className="fas fa-file-alt mr-2"></i> {t.formTab}
+                        </button>
+                        <button onClick={() => {setActiveTab('track'); setTrackResult(null);}} className={`flex-1 py-4 font-semibold ${activeTab === 'track' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+                            <i className="fas fa-search mr-2"></i> {t.trackTab}
+                        </button>
+                    </div>
+
+                    <div className="p-6 md:p-8">
+                        {activeTab === 'form' && (
+                            <form onSubmit={handleSubmit} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.semester}</label>
+                                        <select name="semester" value={formData.semester} onChange={handleInputChange} className="w-full p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+                                            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.academicYear}</label>
+                                        <input type="number" name="academicYear" value={formData.academicYear} onChange={handleInputChange} className="w-full p-2 border rounded-md" required />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.fullname}</label>
+                                        <input type="text" name="fullName" value={formData.fullName} onChange={handleInputChange} className="w-full p-2 border rounded-md" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.studentId}</label>
+                                        <input type="text" name="studentId" value={formData.studentId} onChange={handleInputChange} className="w-full p-2 border rounded-md" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.emailLabel}</label>
+                                        <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full p-2 border rounded-md" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.facultyLabel}</label>
+                                        <select name="faculty" value={formData.faculty} onChange={handleInputChange} className="w-full p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+                                            <option value="" disabled>{t.selectFaculty}</option>
+                                            {FACULTIES.map((fac, idx) => <option key={fac} value={fac}>{lang === 'en' ? FACULTIES_EN[idx] : fac}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.yearLabel}</label>
+                                        <select name="year" value={formData.year} onChange={handleInputChange} className="w-full p-2 border rounded-md" required>
+                                            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                                            <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.requestCountLabel}</label>
+                                        <input type="number" min="1" name="requestCount" value={formData.requestCount} onChange={handleInputChange} className="w-full p-2 border rounded-md" required />
+                                    </div>
+                                    
+                                    <div className="md:col-span-2 border-t pt-4 mt-2"><h3 className="font-semibold text-gray-700">{t.feeInfoHeading}</h3></div>
+                                    
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.totalFeeLabel}</label>
+                                        <input type="number" name="totalFee" value={formData.totalFee} onChange={handleInputChange} className="w-full p-2 border rounded-md" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.payAmountLabel}</label>
+                                        <input type="number" name="payAmount" value={formData.payAmount} onChange={handleInputChange} className="w-full p-2 border rounded-md" required />
+                                    </div>
+                                    <div className="md:col-span-2 bg-gray-50 p-4 rounded-md flex justify-between items-center border flex-wrap gap-2">
+                                        <span className="font-semibold text-gray-700">{t.remainAmountLabel}</span>
+                                        <span className="text-xl font-bold text-red-600">{calculateRemain().toLocaleString()} {t.bahtText.replace('บ.', 'บาท')}</span>
+                                    </div>
+                                </div>
+                                <div className="pt-4">
+                                    <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-md hover:bg-blue-700 transition shadow-sm">
+                                        {t.submitBtn}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
+                        {activeTab === 'track' && (
+                            <div className="space-y-6">
+                                <div className="flex gap-2">
+                                    <input type="text" placeholder={t.searchPlaceholder} value={trackId} onChange={(e) => setTrackId(e.target.value)} 
+                                           className="flex-1 p-3 border rounded-md text-lg" onKeyDown={(e) => e.key === 'Enter' && handleTrack()} />
+                                    <button onClick={() => handleTrack()} className="bg-gray-800 text-white px-6 py-3 rounded-md hover:bg-gray-900 transition">{t.searchBtn}</button>
+                                </div>
+
+                                {trackResult && trackResult.length === 0 && (
+                                    <div className="text-center py-8 text-gray-500">{t.notFound}</div>
+                                )}
+
+                                {trackResult && trackResult.length > 0 && (
+                                    <div className="space-y-4">
+                                        {trackResult.map(req => (
+                                            <div key={req.id} className="border rounded-lg p-5 bg-gray-50 shadow-sm relative">
+                                                <div className="flex flex-col sm:flex-row justify-between items-start mb-4 border-b pb-3 gap-3">
+                                                    <div>
+                                                        <h3 className="font-bold text-lg text-gray-800">{t.docNo}: {req.docNumber}</h3>
+                                                        <p className="text-sm text-gray-500">{t.submitDate}: {formatDate(req.submitDate)}</p>
+                                                    </div>
+                                                    <span className={`px-3 py-1 rounded-full text-sm font-semibold border text-center
+                                                        ${req.status === STATUS_1 ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : 
+                                                          req.status === STATUS_2 ? 'bg-blue-100 text-blue-800 border-blue-200' : 
+                                                          req.status === STATUS_CONFIRMED ? 'bg-purple-100 text-purple-800 border-purple-200' : 
+                                                          'bg-green-100 text-green-800 border-green-200'}`}>
+                                                        {TRANSLATE_STATUS[req.status]?.[lang] || req.status}
+                                                    </span>
+                                                </div>
+                                                
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                                                    <div><span className="text-gray-500">{t.termYear}</span> <br/>{req.semester}/{req.academicYear}</div>
+                                                    <div><span className="text-gray-500">{t.feeFullShort}:</span> <br/>{parseFloat(req.totalFee).toLocaleString()} {t.bahtText}</div>
+                                                    <div><span className="text-gray-500">{t.feePayShort}:</span> <br/>{parseFloat(req.payAmount).toLocaleString()} {t.bahtText}</div>
+                                                    <div><span className="text-gray-500">{t.feeRemainShort}:</span> <br/><span className="text-red-600 font-semibold">{parseFloat(req.remainAmount).toLocaleString()} {t.bahtText}</span></div>
+                                                </div>
+
+                                                {/* Status Timeline */}
+                                                <div className="mt-6 bg-white p-4 rounded-md border">
+                                                    <h4 className="font-semibold text-gray-700 mb-3 text-sm">{t.historyHeading}</h4>
+                                                    <ul className="space-y-2 text-sm text-gray-600">
+                                                        <li><i className="fas fa-check-circle text-green-500 mr-2"></i> {TRANSLATE_STATUS[STATUS_1][lang]} : {formatDate(req.status1Date)}</li>
+                                                        {req.status2Date && <li><i className="fas fa-check-circle text-green-500 mr-2"></i> {TRANSLATE_STATUS[STATUS_2][lang]} : {formatDate(req.status2Date)}</li>}
+                                                        {req.statusConfirmedDate && <li><i className="fas fa-check-circle text-green-500 mr-2"></i> {TRANSLATE_STATUS[STATUS_CONFIRMED][lang]} : {formatDate(req.statusConfirmedDate)}</li>}
+                                                        {req.status3Date && <li><i className="fas fa-check-circle text-green-500 mr-2"></i> {TRANSLATE_STATUS[STATUS_3][lang]} : {formatDate(req.status3Date)}</li>}
+                                                    </ul>
+                                                </div>
+
+                                                {/* Action for Status 2 */}
+                                                {req.status === STATUS_2 && (
+                                                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+                                                        <p className="text-blue-800 text-sm mb-3 font-semibold"><i className="fas fa-info-circle mr-1"></i> {t.infoWaitReg}</p>
+                                                        {isRegistrationOpen() ? (
+                                                            <button onClick={() => handleConfirmRegistration(req)} className="w-full sm:w-auto bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition font-medium shadow-sm">
+                                                                {t.btnConfirmReg}
+                                                            </button>
+                                                        ) : (
+                                                            <p className="text-red-600 text-sm font-medium bg-red-50 p-2 rounded inline-block">
+                                                                {t.outOfDate}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        function StaffLogin({ setView }) {
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState(false);
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (password === 's61866187') {
+                    setView('staff');
+                } else {
+                    setError(true);
+                }
+            };
+
+            return (
+                <div className="max-w-md mx-auto mt-10 bg-white p-8 rounded-xl shadow-md fade-in text-center">
+                    <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i className="fas fa-lock text-2xl text-green-600"></i>
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-6">สำหรับเจ้าหน้าที่</h2>
+                    <form onSubmit={handleLogin}>
+                        <div className="mb-4">
+                            <input type="password" placeholder="รหัสผ่านเจ้าหน้าที่" value={password} onChange={(e) => setPassword(e.target.value)}
+                                   className={`w-full p-3 border rounded-md text-center text-lg ${error ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} autoFocus />
+                            {error && <p className="text-red-500 text-sm mt-2">รหัสผ่านไม่ถูกต้อง</p>}
+                        </div>
+                        <button type="submit" className="w-full bg-green-600 text-white font-bold py-3 rounded-md hover:bg-green-700 transition">
+                            เข้าสู่ระบบ
+                        </button>
+                    </form>
+                </div>
+            );
+        }
+
+        function StaffApp({ requests, updateRequests, settings, updateSettings, showToast }) {
+            const [filterTerm, setFilterTerm] = useState('all');
+            const [filterYear, setFilterYear] = useState('all');
+            const [filterStatus, setFilterStatus] = useState('all');
+            const [filterCount, setFilterCount] = useState('all');
+            const [receiveId, setReceiveId] = useState('');
+            
+            const [editModal, setEditModal] = useState(null); 
+            const [settingsModal, setSettingsModal] = useState(false);
+
+            const years = [...new Set(requests.map(r => r.academicYear))].sort().reverse();
+            const counts = [...new Set(requests.map(r => r.requestCount))].sort((a,b) => parseInt(a) - parseInt(b));
+
+            const filteredRequests = requests.filter(r => {
+                const matchTerm = filterTerm === 'all' || String(r.semester) === String(filterTerm);
+                const matchYear = filterYear === 'all' || String(r.academicYear) === String(filterYear);
+                const matchStatus = filterStatus === 'all' || r.status === filterStatus;
+                const matchCount = filterCount === 'all' || String(r.requestCount) === String(filterCount);
+                return matchTerm && matchYear && matchStatus && matchCount;
+            }).sort((a, b) => new Date(b.submitDate) - new Date(a.submitDate)); 
+
+            const handleReceiveDoc = (e) => {
+                e.preventDefault();
+                if(!receiveId) return;
+                
+                const reqIndex = requests.findIndex(r => String(r.studentId) === String(receiveId) && r.status === STATUS_1);
+                if(reqIndex !== -1) {
+                    const now = new Date().toISOString();
+                    const updated = [...requests];
+                    updated[reqIndex] = { ...updated[reqIndex], status: STATUS_2, status2Date: now };
+                    updateRequests(updated);
+                    showToast(`รับเอกสารของ ${receiveId} เรียบร้อยแล้ว เปลี่ยนสถานะเป็นรออนุมัติ`);
+                    setReceiveId('');
+                } else {
+                    alert('ไม่พบเอกสารที่มีสถานะ "เสนอสำนักวิชา" ของรหัสนักศึกษานี้');
+                }
+            };
+
+            const changeStatus = (id, newStatus) => {
+                const now = new Date().toISOString();
+                let emailToTrigger = null;
+                const updated = requests.map(r => {
+                    if(r.id === id) {
+                        let updates = { status: newStatus };
+                        if(newStatus === STATUS_2) updates.status2Date = now;
+                        if(newStatus === STATUS_CONFIRMED) updates.statusConfirmedDate = now;
+                        if(newStatus === STATUS_3) {
+                            updates.status3Date = now;
+                            if(r.status !== STATUS_3) emailToTrigger = r; 
+                        }
+                        return { ...r, ...updates };
+                    }
+                    return r;
+                });
+                updateRequests(updated);
+
+                if (emailToTrigger) {
+                    showToast('กำลังส่งอีเมลแจ้งเตือนนักศึกษา...', 'info');
+                    if (typeof google !== 'undefined' && google.script) {
+                        google.script.run
+                            .withSuccessHandler(() => showToast(`ส่งอีเมลอนุมัติไปยัง ${emailToTrigger.email} สำเร็จ`, 'success'))
+                            .withFailureHandler((err) => showToast(`ไม่สามารถส่งอีเมลได้: ${err.message}`, 'error'))
+                            .sendApprovalEmail(emailToTrigger.email);
+                    }
+                }
+            };
+
+            const handleDelete = (id) => {
+                if(confirm('คุณแน่ใจหรือไม่ที่จะลบเอกสารนี้?')) {
+                    updateRequests(requests.filter(r => r.id !== id));
+                    showToast('ลบเอกสารเรียบร้อยแล้ว');
+                }
+            };
+
+            const handleSaveEdit = (e) => {
+                e.preventDefault();
+                const remain = (parseFloat(editModal.totalFee) || 0) - (parseFloat(editModal.payAmount) || 0);
+                const updatedModal = { ...editModal, remainAmount: remain >= 0 ? remain : 0 };
+
+                const updated = requests.map(r => r.id === updatedModal.id ? updatedModal : r);
+                updateRequests(updated);
+                setEditModal(null);
+                showToast('อัปเดตข้อมูลเรียบร้อยแล้ว');
+            };
+
+            const handleSaveSettings = (e) => {
+                e.preventDefault();
+                const form = new FormData(e.target);
+                updateSettings({
+                    startDate: form.get('startDate'),
+                    endDate: form.get('endDate')
+                });
+                setSettingsModal(false);
+                showToast('บันทึกช่วงเวลาลงทะเบียนเรียบร้อย');
+            };
+
+            return (
+                <div className="space-y-6 fade-in">
+                    
+                    {/* Top Action Bar */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        {/* Summary Cards */}
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between col-span-1 lg:col-span-2">
+                            <div>
+                                <h3 className="text-gray-500 text-sm font-semibold mb-1">สรุปข้อมูล (ตัวกรองปัจจุบัน)</h3>
+                                <div className="flex gap-4">
+                                    <div className="text-center">
+                                        <span className="block text-2xl font-bold text-gray-800">{filteredRequests.length}</span>
+                                        <span className="text-xs text-gray-500">ทั้งหมด</span>
+                                    </div>
+                                    <div className="text-center">
+                                        <span className="block text-2xl font-bold text-yellow-600">{filteredRequests.filter(r=>r.status===STATUS_1).length}</span>
+                                        <span className="text-xs text-gray-500">เสนอฯ</span>
+                                    </div>
+                                    <div className="text-center">
+                                        <span className="block text-2xl font-bold text-blue-600">{filteredRequests.filter(r=>r.status===STATUS_2).length}</span>
+                                        <span className="text-xs text-gray-500">รออนุมัติ</span>
+                                    </div>
+                                    <div className="text-center">
+                                        <span className="block text-2xl font-bold text-purple-600">{filteredRequests.filter(r=>r.status===STATUS_CONFIRMED).length}</span>
+                                        <span className="text-xs text-gray-500 whitespace-nowrap">ยืนยันลงทะเบียน</span>
+                                    </div>
+                                    <div className="text-center">
+                                        <span className="block text-2xl font-bold text-green-600">{filteredRequests.filter(r=>r.status===STATUS_3).length}</span>
+                                        <span className="text-xs text-gray-500">อนุมัติแล้ว</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onClick={() => setSettingsModal(true)} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm transition">
+                                <i className="fas fa-calendar-alt mr-2"></i>ตั้งเวลาลงทะเบียน
+                            </button>
+                        </div>
+
+                        {/* Quick Receive */}
+                        <div className="bg-blue-50 p-5 rounded-xl shadow-sm border border-blue-100">
+                            <h3 className="text-blue-800 font-semibold mb-2 text-sm"><i className="fas fa-inbox mr-1"></i> รับเอกสาร (เปลี่ยนสถานะเป็นรออนุมัติ)</h3>
+                            <form onSubmit={handleReceiveDoc} className="flex gap-2">
+                                <input type="text" placeholder="รหัสนักศึกษา" value={receiveId} onChange={(e)=>setReceiveId(e.target.value)} className="w-full p-2 border rounded border-blue-300" required />
+                                <button type="submit" className="bg-blue-600 text-white px-4 rounded hover:bg-blue-700">ยืนยัน</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    {/* Data Table Section */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="p-4 border-b bg-gray-50 flex flex-wrap gap-4 justify-between items-center">
+                            <h2 className="font-bold text-gray-700"><i className="fas fa-list-alt mr-2"></i>รายการคำร้อง</h2>
+                            <div className="flex flex-wrap gap-2 text-sm">
+                                <select value={filterTerm} onChange={(e)=>setFilterTerm(e.target.value)} className="border rounded p-1.5">
+                                    <option value="all">ทุกภาคการศึกษา</option>
+                                    <option value="1">ภาค 1</option><option value="2">ภาค 2</option><option value="3">ภาค 3</option>
+                                </select>
+                                <select value={filterYear} onChange={(e)=>setFilterYear(e.target.value)} className="border rounded p-1.5">
+                                    <option value="all">ทุกปีการศึกษา</option>
+                                    {years.map(y => <option key={y} value={y}>ปี {y}</option>)}
+                                </select>
+                                <select value={filterStatus} onChange={(e)=>setFilterStatus(e.target.value)} className="border rounded p-1.5">
+                                    <option value="all">ทุกสถานะ</option>
+                                    <option value={STATUS_1}>{STATUS_1}</option>
+                                    <option value={STATUS_2}>{STATUS_2}</option>
+                                    <option value={STATUS_CONFIRMED}>{STATUS_CONFIRMED}</option>
+                                    <option value={STATUS_3}>{STATUS_3}</option>
+                                </select>
+                                <select value={filterCount} onChange={(e)=>setFilterCount(e.target.value)} className="border rounded p-1.5">
+                                    <option value="all">ทำเรื่องทุกครั้ง</option>
+                                    {counts.map(c => <option key={c} value={c}>ครั้งที่ {c}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-100 text-gray-600 text-sm">
+                                        <th className="p-3 font-semibold">เลขเอกสาร / วันที่ยื่น</th>
+                                        <th className="p-3 font-semibold">ข้อมูลนักศึกษา</th>
+                                        <th className="p-3 font-semibold">ข้อมูลเงิน (บาท)</th>
+                                        <th className="p-3 font-semibold">สถานะ</th>
+                                        <th className="p-3 font-semibold text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredRequests.length === 0 ? (
+                                        <tr><td colSpan="5" className="text-center p-8 text-gray-500">ไม่มีข้อมูล</td></tr>
+                                    ) : (
+                                        filteredRequests.map(req => (
+                                            <tr key={req.id} className="border-b hover:bg-gray-50">
+                                                <td className="p-3 text-sm">
+                                                    <div className="font-medium text-blue-600">{req.docNumber}</div>
+                                                    <div className="text-xs text-gray-500">{formatDate(req.submitDate)}</div>
+                                                    <div className="text-xs bg-gray-200 inline-block px-1 rounded mt-1">เทอม {req.semester}/{req.academicYear}</div>
+                                                </td>
+                                                <td className="p-3 text-sm">
+                                                    <div className="font-medium">{req.fullName}</div>
+                                                    <div className="text-gray-600">รหัส: {req.studentId} | ปี {req.year}</div>
+                                                    <div className="text-xs text-gray-500">{req.faculty}</div>
+                                                </td>
+                                                <td className="p-3 text-sm">
+                                                    <div>เต็ม: {parseFloat(req.totalFee).toLocaleString()}</div>
+                                                    <div>จ่าย: {parseFloat(req.payAmount).toLocaleString()}</div>
+                                                    <div className="text-red-600 font-medium">เหลือ: {parseFloat(req.remainAmount).toLocaleString()}</div>
+                                                </td>
+                                                <td className="p-3 text-sm">
+                                                    <select 
+                                                        value={req.status} 
+                                                        onChange={(e) => changeStatus(req.id, e.target.value)}
+                                                        className={`border rounded p-1 text-xs font-semibold
+                                                            ${req.status === STATUS_1 ? 'bg-yellow-50 text-yellow-700' : 
+                                                              req.status === STATUS_2 ? 'bg-blue-50 text-blue-700' : 
+                                                              req.status === STATUS_CONFIRMED ? 'bg-purple-50 text-purple-700' : 
+                                                              'bg-green-50 text-green-700'}`}
+                                                    >
+                                                        <option value={STATUS_1}>{STATUS_1}</option>
+                                                        <option value={STATUS_2}>{STATUS_2}</option>
+                                                        <option value={STATUS_CONFIRMED}>{STATUS_CONFIRMED}</option>
+                                                        <option value={STATUS_3}>{STATUS_3}</option>
+                                                    </select>
+                                                    {req.status === STATUS_2 && req.status2Date && <div className="text-[10px] text-gray-500 mt-1">รับ: {formatDate(req.status2Date).split(' ')[0]}</div>}
+                                                    {req.status === STATUS_CONFIRMED && req.statusConfirmedDate && <div className="text-[10px] text-gray-500 mt-1">ยืนยัน: {formatDate(req.statusConfirmedDate).split(' ')[0]}</div>}
+                                                    {req.status === STATUS_3 && req.status3Date && <div className="text-[10px] text-gray-500 mt-1">อนุมัติ: {formatDate(req.status3Date).split(' ')[0]}</div>}
+                                                </td>
+                                                <td className="p-3 text-center space-x-2">
+                                                    <button onClick={() => setEditModal(req)} className="text-blue-500 hover:bg-blue-100 p-2 rounded transition" title="แก้ไข">
+                                                        <i className="fas fa-edit"></i>
+                                                    </button>
+                                                    <button onClick={() => handleDelete(req.id)} className="text-red-500 hover:bg-red-100 p-2 rounded transition" title="ลบ">
+                                                        <i className="fas fa-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Settings Modal */}
+                    {settingsModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 fade-in">
+                            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+                                <h3 className="text-lg font-bold mb-4">ตั้งค่าช่วงเวลายืนยันการลงทะเบียน</h3>
+                                <p className="text-sm text-gray-600 mb-4">กำหนดช่วงวันที่ให้นักศึกษาสามารถกดปุ่ม "ลงทะเบียนเรียนเรียบร้อยแล้ว" ได้</p>
+                                <form onSubmit={handleSaveSettings}>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">วันที่เริ่ม</label>
+                                            <input type="date" name="startDate" defaultValue={settings.startDate} className="w-full p-2 border rounded" required />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">วันสิ้นสุด</label>
+                                            <input type="date" name="endDate" defaultValue={settings.endDate} className="w-full p-2 border rounded" required />
+                                        </div>
+                                    </div>
+                                    <div className="mt-6 flex gap-3 justify-end">
+                                        <button type="button" onClick={() => setSettingsModal(false)} className="px-4 py-2 text-gray-600 bg-gray-100 rounded hover:bg-gray-200">ยกเลิก</button>
+                                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">บันทึก</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Edit Form Modal */}
+                    {editModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 fade-in overflow-y-auto">
+                            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 my-8">
+                                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                                    <h3 className="text-lg font-bold">แก้ไขข้อมูลคำร้อง {editModal.docNumber}</h3>
+                                    <button onClick={() => setEditModal(null)} className="text-gray-500 hover:text-gray-800"><i className="fas fa-times text-xl"></i></button>
+                                </div>
+                                <form onSubmit={handleSaveEdit}>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                        <div><label className="block text-gray-700 mb-1">ชื่อ-สกุล</label><input type="text" value={editModal.fullName} onChange={e => setEditModal({...editModal, fullName: e.target.value})} className="w-full p-2 border rounded" required /></div>
+                                        <div><label className="block text-gray-700 mb-1">รหัสนักศึกษา</label><input type="text" value={editModal.studentId} onChange={e => setEditModal({...editModal, studentId: e.target.value})} className="w-full p-2 border rounded" required /></div>
+                                        <div><label className="block text-gray-700 mb-1">อีเมล</label><input type="email" value={editModal.email} onChange={e => setEditModal({...editModal, email: e.target.value})} className="w-full p-2 border rounded" required /></div>
+                                        <div>
+                                            <label className="block text-gray-700 mb-1">สำนักวิชา</label>
+                                            <select value={editModal.faculty} onChange={e => setEditModal({...editModal, faculty: e.target.value})} className="w-full p-2 border rounded" required>
+                                                <option value="" disabled>-- เลือกสำนักวิชา --</option>
+                                                {FACULTIES.map(fac => <option key={fac} value={fac}>{fac}</option>)}
+                                            </select>
+                                        </div>
+                                        
+                                        <div className="flex gap-2">
+                                            <div className="flex-1"><label className="block text-gray-700 mb-1">เทอม</label><input type="text" value={editModal.semester} onChange={e => setEditModal({...editModal, semester: e.target.value})} className="w-full p-2 border rounded" required /></div>
+                                            <div className="flex-1"><label className="block text-gray-700 mb-1">ปีการศึกษา</label><input type="text" value={editModal.academicYear} onChange={e => setEditModal({...editModal, academicYear: e.target.value})} className="w-full p-2 border rounded" required /></div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <div className="flex-1"><label className="block text-gray-700 mb-1">ชั้นปี</label><input type="text" value={editModal.year} onChange={e => setEditModal({...editModal, year: e.target.value})} className="w-full p-2 border rounded" required /></div>
+                                            <div className="flex-1"><label className="block text-gray-700 mb-1">ครั้งที่</label><input type="number" value={editModal.requestCount} onChange={e => setEditModal({...editModal, requestCount: e.target.value})} className="w-full p-2 border rounded" required /></div>
+                                        </div>
+
+                                        <div className="md:col-span-2 border-t pt-2 mt-2 font-semibold">ข้อมูลการชำระเงิน</div>
+                                        <div><label className="block text-gray-700 mb-1">ค่าเทอมเต็ม</label><input type="number" value={editModal.totalFee} onChange={e => setEditModal({...editModal, totalFee: e.target.value})} className="w-full p-2 border rounded" required /></div>
+                                        <div><label className="block text-gray-700 mb-1">ชำระครั้งนี้</label><input type="number" value={editModal.payAmount} onChange={e => setEditModal({...editModal, payAmount: e.target.value})} className="w-full p-2 border rounded" required /></div>
+                                    </div>
+                                    <div className="mt-6 flex justify-end gap-3 pt-4 border-t">
+                                        <button type="button" onClick={() => setEditModal(null)} className="px-5 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200">ยกเลิก</button>
+                                        <button type="submit" className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">บันทึกการแก้ไข</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
